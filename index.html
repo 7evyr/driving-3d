@@ -735,7 +735,7 @@
       camera.lookAt(camTarget);
 
       // Subtle roll when steering
-      camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, -steer * 0.03, 0.08);
+      // Camera follow (no tilt, no flip) const camTarget = new THREE.Vector3(player.position.x, 0.72, player.position.z); const desiredCam = new THREE.Vector3(player.position.x, 3.25, player.position.z - 8.1);  camera.position.lerp(desiredCam, 1 - Math.pow(0.001, dt)); camera.up.set(0, 1, 0); camera.lookAt(camTarget);
 
       renderer.render(scene, camera);
     }
