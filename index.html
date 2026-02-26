@@ -206,9 +206,9 @@ function spendCredits(n){if(save.credits<n)return false;save.credits-=n;writeSav
 // ── CAR DEFS ──────────────────────────────────────
 const CAR_DEFS=[
   {id:"viper",name:"VIPER X",price:0,desc:"Default neon racer. Balanced & fast.",color:0x76ff03,glowColor:0x76ff03,shape:"sport"},
-  {id:"phantom",name:"PHANTOM",price:40000,desc:"Stealth lowrider. Ultra-wide, razor-low profile.",color:0xaa00ff,glowColor:0xcc00ff,shape:"lowrider"},
-  {id:"inferno",name:"INFERNO",price:80000,desc:"Fire muscle beast. Massive hood & raw torque.",color:0xff3300,glowColor:0xff5500,shape:"muscle"},
-  {id:"arctic",name:"ARCTIC",price:150000,desc:"Crystalline hypercar. Angular, futuristic, fast.",color:0x00ccff,glowColor:0x00eeff,shape:"hyper"},
+  {id:"phantom",name:"PHANTOM",price:150000,desc:"Stealth lowrider. Ultra-wide, razor-low profile.",color:0xaa00ff,glowColor:0xcc00ff,shape:"lowrider"},
+  {id:"inferno",name:"INFERNO",price:350000,desc:"Fire muscle beast. Massive hood & raw torque.",color:0xff3300,glowColor:0xff5500,shape:"muscle"},
+  {id:"arctic",name:"ARCTIC",price:800000,desc:"Crystalline hypercar. Angular, futuristic, fast.",color:0x00ccff,glowColor:0x00eeff,shape:"hyper"},
 ];
 
 function carSVG(def){
@@ -424,25 +424,27 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(300,32,20),skyMat);scene.add(s
 }
 
 // ── ROAD ──────────────────────────────────────────
-const ROAD_W=7.5,ROAD_LEN=500;
+// Planes are very long (4000 units) so their edges never appear in view.
+// They are re-centered on the player every frame, staying well ahead+behind.
+const ROAD_W=7.5, ROAD_LEN=4000;
 const roadMesh=new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W,ROAD_LEN),new THREE.MeshStandardMaterial({color:0x111118,roughness:0.9,metalness:0.1}));
-roadMesh.rotation.x=-Math.PI/2;roadMesh.position.set(0,0,200);scene.add(roadMesh);
-const groundMesh=new THREE.Mesh(new THREE.PlaneGeometry(300,ROAD_LEN),new THREE.MeshStandardMaterial({color:0x060610,roughness:1.0}));
-groundMesh.rotation.x=-Math.PI/2;groundMesh.position.set(0,-0.01,200);scene.add(groundMesh);
+roadMesh.rotation.x=-Math.PI/2;roadMesh.position.set(0,0,0);scene.add(roadMesh);
+const groundMesh=new THREE.Mesh(new THREE.PlaneGeometry(600,ROAD_LEN),new THREE.MeshStandardMaterial({color:0x060610,roughness:1.0}));
+groundMesh.rotation.x=-Math.PI/2;groundMesh.position.set(0,-0.01,0);scene.add(groundMesh);
 
 const shoulderMat=new THREE.MeshStandardMaterial({color:0x0d0d18,roughness:1.0});
-const lShoulder=new THREE.Mesh(new THREE.PlaneGeometry(4,ROAD_LEN),shoulderMat);
-lShoulder.rotation.x=-Math.PI/2;lShoulder.position.set(-(ROAD_W/2+2),0.001,200);scene.add(lShoulder);
-const rShoulder=lShoulder.clone();rShoulder.position.x=ROAD_W/2+2;scene.add(rShoulder);
+const lShoulder=new THREE.Mesh(new THREE.PlaneGeometry(8,ROAD_LEN),shoulderMat);
+lShoulder.rotation.x=-Math.PI/2;lShoulder.position.set(-(ROAD_W/2+4),0.001,0);scene.add(lShoulder);
+const rShoulder=lShoulder.clone();rShoulder.position.x=ROAD_W/2+4;scene.add(rShoulder);
 
 const edgeMat=new THREE.MeshStandardMaterial({color:0x76ff03,emissive:0x76ff03,emissiveIntensity:2.0,roughness:0.1});
 const lEdge=new THREE.Mesh(new THREE.PlaneGeometry(0.14,ROAD_LEN),edgeMat);
-lEdge.rotation.x=-Math.PI/2;lEdge.position.set(-ROAD_W/2+0.07,0.01,200);scene.add(lEdge);
+lEdge.rotation.x=-Math.PI/2;lEdge.position.set(-ROAD_W/2+0.07,0.01,0);scene.add(lEdge);
 const rEdge=lEdge.clone();rEdge.position.x=ROAD_W/2-0.07;scene.add(rEdge);
 
 const centerMat=new THREE.MeshStandardMaterial({color:0xff00aa,emissive:0xff00aa,emissiveIntensity:1.5,roughness:0.1});
 const centerLine=new THREE.Mesh(new THREE.PlaneGeometry(0.08,ROAD_LEN),centerMat);
-centerLine.rotation.x=-Math.PI/2;centerLine.position.set(0,0.01,200);scene.add(centerLine);
+centerLine.rotation.x=-Math.PI/2;centerLine.position.set(0,0.01,0);scene.add(centerLine);
 
 function makeDashLine(x){
   const g=new THREE.BoxGeometry(0.1,0.03,2.0);
@@ -733,12 +735,13 @@ function tick(){
   player.rotation.z=playerLean;
 
   const dz=(speed/MAX_SPEED)*40*dt;player.position.z+=dz;
-  const pz=player.position.z,baseZ=pz+100;
+  const pz=player.position.z;
 
-  roadMesh.position.set(0,0,baseZ);roadMesh.rotation.y=0;
-  groundMesh.position.z=baseZ+30;
-  lShoulder.position.z=baseZ;rShoulder.position.z=baseZ;
-  lEdge.position.z=baseZ;rEdge.position.z=baseZ;centerLine.position.z=baseZ;
+  // Planes are huge (4000 units) — just track player Z so edges are always ~2000 units away
+  roadMesh.position.set(0,0,pz);roadMesh.rotation.y=0;
+  groundMesh.position.set(0,-0.01,pz);
+  lShoulder.position.z=pz;rShoulder.position.z=pz;
+  lEdge.position.z=pz;rEdge.position.z=pz;centerLine.position.z=pz;
 
   const dzW=dz*55;
   for(const ln of [lane1,lane2])for(const d of ln.children)d.position.z=((d.position.z-dzW)%500+500)%500+pz;
