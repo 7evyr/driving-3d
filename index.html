@@ -533,7 +533,7 @@
       speed += (targetSpeed - speed) * (1 - Math.pow(0.001, dt));
 
       // Steering does not change speed
-      const steer = (right ? 1 : 0) - (left ? 1 : 0);
+      const steer = (left ? 1 : 0) - (right ? 1 : 0);
       player.position.x += steer * 6.4 * dt;
       player.position.x = clamp(player.position.x, -ROAD_W/2 + 0.8, ROAD_W/2 - 0.8);
 
