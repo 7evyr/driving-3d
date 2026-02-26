@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Driving 3D</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #0b0b0e; overflow: hidden; }
+    #ui {
+      position: fixed; left: 12px; top: 12px;
+      color: #eaeaea; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 10px 12px; backdrop-filter: blur(6px);
+      user-select: none;
+    }
+    #ui b { color: #76ff03; }
+    #hint { opacity: 0.85; font-size: 12px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    Speed: <b id="speed">0</b> km/h<br/>
+    Score: <b id="score">0</b>
+    <div id="hint">A/D or ←/→ steer, W/S speed, Space pause</div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+    const speedEl = document.getElementById("speed");
+    const scoreEl = document.getElementById("score");
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x0b0b0e, 18, 90);
+
+    const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 250);
+    camera.position.set(0, 3.2, -7.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x222233, 0.9);
+    scene.add(hemi);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(8, 12, -6);
+    scene.add(dir);
+
+    const ROAD_W = 7.0;
+    const roadGeo = new THREE.PlaneGeometry(ROAD_W, 240, 1, 1);
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a32, roughness: 0.9, metalness: 0.0 });
+    const road = new THREE.Mesh(roadGeo, roadMat);
+    road.rotation.x = -Math.PI / 2;
+    road.position.z = 60;
+    scene.add(road);
+
+    const shoulderGeo = new THREE.PlaneGeometry(2.2, 240);
+    const shoulderMat = new THREE.MeshStandardMaterial({ color: 0x1f1f25, roughness: 1.0 });
+    const leftShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
+    leftShoulder.rotation.x = -Math.PI / 2;
+    leftShoulder.position.set(-(ROAD_W / 2 + 1.1), 0.01, 60);
+    scene.add(leftShoulder);
+
+    const rightShoulder = leftShoulder.clone();
+    rightShoulder.position.x = (ROAD_W / 2 + 1.1);
+    scene.add(rightShoulder);
+
+    function makeDashLine(x) {
+      const g = new THREE.BoxGeometry(0.12, 0.04, 1.6);
+      const m = new THREE.MeshStandardMaterial({ color: 0xe8e8ef, roughness: 0.6 });
+      const group = new THREE.Group();
+      for (let i = 0; i < 45; i++) {
+        const dash = new THREE.Mesh(g, m);
+        dash.position.set(x, 0.03, i * 5);
+        group.add(dash);
+      }
+      return group;
+    }
+    const lane1 = makeDashLine(-ROAD_W / 6);
+    const lane2 = makeDashLine( ROAD_W / 6);
+    scene.add(lane1, lane2);
+
+    function makeCar(color) {
+      const group = new THREE.Group();
+
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(1.0, 0.45, 2.0),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.2 })
+      );
+      body.position.y = 0.35;
+      group.add(body);
+
+      const cabin = new THREE.Mesh(
+        new THREE.BoxGeometry(0.85, 0.38, 0.9),
+        new THREE.MeshStandardMaterial({ color: 0xccccdd, roughness: 0.15, metalness: 0.0, transparent: true, opacity: 0.55 })
+      );
+      cabin.position.set(0, 0.62, -0.15);
+      group.add(cabin);
+
+      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0d0d10, roughness: 1.0 });
+      const wheelGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.18, 16);
+      const wheelPos = [
+        [-0.55, 0.18,  0.75],
+        [ 0.55, 0.18,  0.75],
+        [-0.55, 0.18, -0.75],
+        [ 0.55, 0.18, -0.75],
+      ];
+      for (const [x,y,z] of wheelPos) {
+        const w = new THREE.Mesh(wheelGeo, wheelMat);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(x, y, z);
+        group.add(w);
+      }
+
+      return group;
+    }
+
+    const player = makeCar(0x76ff03);
+    player.position.set(0, 0, 0);
+    scene.add(player);
+
+    const obstacles = [];
+    function spawnObstacle() {
+      const o = makeCar(0xff4b4b);
+      const laneX = [-ROAD_W/3, 0, ROAD_W/3][Math.floor(Math.random()*3)];
+      o.position.set(laneX, 0, player.position.z + 70 + Math.random()*30);
+      scene.add(o);
+      obstacles.push(o);
+    }
+
+    const keys = new Set();
+    addEventListener("keydown", (e) => {
+      if (e.code === "Space") { e.preventDefault(); paused = !paused; return; }
+      keys.add(e.key);
+    });
+    addEventListener("keyup", (e) => keys.delete(e.key));
+
+    let speed = 0;
+    let targetSpeed = 0;
+    let score = 0;
+    let paused = false;
+    let spawnT = 0;
+
+    function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+    const clock = new THREE.Clock();
+
+    function tick() {
+      requestAnimationFrame(tick);
+      const dt = Math.min(0.033, clock.getDelta());
+      if (paused) { renderer.render(scene, camera); return; }
+
+      const left  = keys.has("a") || keys.has("A") || keys.has("ArrowLeft");
+      const right = keys.has("d") || keys.has("D") || keys.has("ArrowRight");
+      const up    = keys.has("w") || keys.has("W") || keys.has("ArrowUp");
+      const down  = keys.has("s") || keys.has("S") || keys.has("ArrowDown");
+
+      if (up) targetSpeed = clamp(targetSpeed + 180*dt, 0, 220);
+      if (down) targetSpeed = clamp(targetSpeed - 220*dt, 0, 220);
+
+      speed += (targetSpeed - speed) * (1 - Math.pow(0.001, dt));
+
+      const steer = (right ? 1 : 0) - (left ? 1 : 0);
+      player.position.x += steer * 5.2 * dt;
+      player.position.x = clamp(player.position.x, -ROAD_W/2 + 0.8, ROAD_W/2 - 0.8);
+
+      const dz = (speed / 220) * 28 * dt;
+      player.position.z += dz;
+
+      road.position.z = player.position.z + 60;
+      leftShoulder.position.z = road.position.z;
+      rightShoulder.position.z = road.position.z;
+
+      for (const ln of [lane1, lane2]) {
+        for (const dash of ln.children) {
+          dash.position.z = ((dash.position.z - dz*60) % 225 + 225) % 225;
+          dash.position.z += player.position.z;
+        }
+      }
+
+      spawnT -= dt;
+      const spawnEvery = clamp(1.1 - speed/260, 0.35, 1.1);
+      if (spawnT <= 0) { spawnObstacle(); spawnT = spawnEvery; }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        if (o.position.z < player.position.z - 10) {
+          scene.remove(o);
+          obstacles.splice(i, 1);
+          continue;
+        }
+        const dx = Math.abs(o.position.x - player.position.x);
+        const dz2 = Math.abs(o.position.z - player.position.z);
+        if (dx < 0.95 && dz2 < 1.45) {
+          targetSpeed = 0;
+          speed = 0;
+          paused = true;
+        }
+      }
+
+      score += Math.floor((speed/18) * dt * 60);
+      speedEl.textContent = String(Math.round(speed));
+      scoreEl.textContent = String(score);
+
+      const camTarget = new THREE.Vector3(player.position.x, 0.7, player.position.z);
+      const desiredCam = new THREE.Vector3(player.position.x, 3.2, player.position.z - 7.8);
+      camera.position.lerp(desiredCam, 1 - Math.pow(0.001, dt));
+      camera.lookAt(camTarget);
+
+      renderer.render(scene, camera);
+    }
+
+    addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    for (let i = 0; i < 3; i++) spawnObstacle();
+    tick();
+  </script>
+</body>
+</html>
+
